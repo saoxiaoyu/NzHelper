@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,12 +21,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -169,18 +178,47 @@ fun HomeScreen() {
                             fontWeight = FontWeight.Bold
                         )
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-                            Button(onClick = {
-                                isRunning = !isRunning
-                            }) {
-                                Text(if (isRunning) "暂停" else "开始")
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(48.dp), // 间距稍大，因为点击区域更大
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // 纯图标：开始/暂停
+                            IconButton(
+                                onClick = { isRunning = !isRunning },
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.primaryContainer,
+                                        shape = CircleShape
+                                    )
+                            ) {
+                                Icon(
+                                    imageVector = if (isRunning) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    contentDescription = if (isRunning) "暂停" else "开始",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(36.dp)
+                                )
                             }
-                            Button(onClick = {
-                                if (elapsedSeconds > 0) showConfirmDialog = true
-                                else Toast.makeText(context, "计时尚未开始", Toast.LENGTH_SHORT)
-                                    .show()
-                            }) {
-                                Text("结束")
+
+                            // 纯图标：结束
+                            IconButton(
+                                onClick = {
+                                    if (elapsedSeconds > 0) showConfirmDialog = true
+                                    else Toast.makeText(context, "计时尚未开始", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.errorContainer,
+                                        shape = CircleShape
+                                    )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Stop,
+                                    contentDescription = "结束",
+                                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.size(36.dp)
+                                )
                             }
                         }
                     }
