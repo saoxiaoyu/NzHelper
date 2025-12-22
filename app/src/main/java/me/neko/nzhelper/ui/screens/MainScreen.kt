@@ -45,7 +45,12 @@ fun BottomNavigationBar(navController: NavController) {
     NavigationBar {
         BottomNavItem.Companion.items.forEach { item ->
             NavigationBarItem(
-                icon = { Icon(imageVector = item.icon, contentDescription = item.title) },
+                icon = {
+                    Icon(
+                        painter = item.icon(),
+                        contentDescription = item.title
+                    )
+                },
                 label = { Text(text = item.title) },
                 selected = currentRoute == item.route,
                 onClick = {

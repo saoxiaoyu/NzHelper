@@ -26,13 +26,13 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
@@ -86,7 +86,32 @@ fun StatisticsScreen() {
         }
     }
 
-    // 计算总体统计（用于新卡片）
+    val weekCount by remember {
+        derivedStateOf {
+            sessions.count {
+                it.timestamp >= currentTime.minusDays(currentTime.dayOfWeek.value.toLong() - 1)
+                    .withHour(0).withMinute(0).withSecond(0).withNano(0)
+            }
+        }
+    }
+    val monthCount by remember {
+        derivedStateOf {
+            sessions.count {
+                it.timestamp >= currentTime.withDayOfMonth(1)
+                    .withHour(0).withMinute(0).withSecond(0).withNano(0)
+            }
+        }
+    }
+    val yearCount by remember {
+        derivedStateOf {
+            sessions.count {
+                it.timestamp >= currentTime.withDayOfYear(1)
+                    .withHour(0).withMinute(0).withSecond(0).withNano(0)
+            }
+        }
+    }
+
+    // 计算总体统计
     val totalStats by remember {
         derivedStateOf {
             if (sessions.isEmpty()) {
@@ -214,7 +239,7 @@ fun StatisticsScreen() {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
     Scaffold(
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = { Text("统计") },
                 scrollBehavior = scrollBehavior
             )
@@ -260,6 +285,9 @@ fun StatisticsScreen() {
                             totalCount = totalStats.first,
                             totalSeconds = totalStats.second,
                             avgMinutes = totalStats.third,
+                            weekCount = weekCount,
+                            monthCount = monthCount,
+                            yearCount = yearCount,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -505,6 +533,9 @@ private fun TotalStatCard(
     totalCount: Int,
     totalSeconds: Int,
     avgMinutes: Float,
+    weekCount: Int,
+    monthCount: Int,
+    yearCount: Int,
     modifier: Modifier = Modifier
 ) {
     ElevatedCard(
@@ -532,35 +563,76 @@ private fun TotalStatCard(
                     )
                 }
 
-                // 平均每次
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    if (totalCount > 0) {
-                        Text(
-                            "%.1f 分钟".format(avgMinutes),
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            "平均每次",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        Text(
-                            "0 分钟",
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            "平均每次",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Text(
+                        if (totalCount > 0) "%.1f 分钟".format(avgMinutes)
+                        else "0 分钟",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        "平均每次",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
-            // 下方补充信息
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // 周期次数统计
+            Text(
+                text = "次数统计",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+
+            // 三列布局显示周、月、年次数
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "$weekCount 次",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        "本周",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "$monthCount 次",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        "本月",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "$yearCount 次",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        "今年",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             Spacer(modifier = Modifier.height(12.dp))
@@ -569,7 +641,7 @@ private fun TotalStatCard(
                 horizontalArrangement = Arrangement.Center
             ) {
                 Text(
-                    "总次数：$totalCount 次",
+                    "历史总次数：$totalCount 次",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
