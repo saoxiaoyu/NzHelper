@@ -20,18 +20,20 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -75,7 +77,7 @@ private fun formatTime(totalSeconds: Int): String {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HistoryScreen() {
     val context = LocalContext.current
@@ -101,7 +103,7 @@ fun HistoryScreen() {
     var showClearDialog by remember { mutableStateOf(false) }
     var sessionToDelete by remember { mutableStateOf<Session?>(null) }
     var sessionToView by remember { mutableStateOf<Session?>(null) }
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
 
     // 导出 Launcher
     val exportLauncher = rememberLauncherForActivityResult(
@@ -193,7 +195,7 @@ fun HistoryScreen() {
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
+            LargeFlexibleTopAppBar(
                 title = { Text("历史记录") },
                 actions = {
                     IconButton(onClick = { showMenu = true }) {
@@ -261,17 +263,12 @@ fun HistoryScreen() {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(
-                        top = 8.dp,
-                        start = 16.dp,
-                        end = 16.dp,
-                        bottom = 16.dp
-                    )
+                    contentPadding = PaddingValues(16.dp)
                 ) {
                     items(sessions) { session ->
-                        OutlinedCard(
+                        ElevatedCard(
                             modifier = Modifier.fillMaxWidth(),
-                            border = CardDefaults.outlinedCardBorder(),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                             onClick = { sessionToView = session }
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
@@ -299,7 +296,10 @@ fun HistoryScreen() {
                                         }
                                     }
                                     IconButton(onClick = { sessionToDelete = session }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "删除记录")
+                                        Icon(
+                                            Icons.Default.DeleteForever,
+                                            contentDescription = "删除记录"
+                                        )
                                     }
                                 }
                             }
