@@ -33,6 +33,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
@@ -58,6 +59,9 @@ import java.time.DayOfWeek
 import java.time.LocalDateTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
+import java.util.Locale
+import kotlin.random.Random
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -237,6 +241,87 @@ fun StatisticsScreen() {
         }
     }
 
+    val latestSessionInfo by remember {
+        derivedStateOf {
+            if (sessions.isEmpty()) {
+                null
+            } else {
+                val latest = sessions.maxByOrNull { it.timestamp }!!
+                val lastDate = latest.timestamp.toLocalDate()
+                val daysAgo = ChronoUnit.DAYS.between(lastDate, LocalDateTime.now().toLocalDate())
+
+                // 主日期显示
+                val displayDate = when (daysAgo) {
+                    0L -> "今天"
+                    1L -> "昨天"
+                    else -> {
+                        val dateFmt = lastDate.format(DateTimeFormatter.ofPattern("M月d日"))
+                        val dayOfWeek = when (lastDate.dayOfWeek) {
+                            DayOfWeek.MONDAY -> "星期一"
+                            DayOfWeek.TUESDAY -> "星期二"
+                            DayOfWeek.WEDNESDAY -> "星期三"
+                            DayOfWeek.THURSDAY -> "星期四"
+                            DayOfWeek.FRIDAY -> "星期五"
+                            DayOfWeek.SATURDAY -> "星期六"
+                            DayOfWeek.SUNDAY -> "星期日"
+                            else -> ""
+                        }
+                        "$dateFmt $dayOfWeek"
+                    }
+                }
+
+                // 时间
+                val time = latest.timestamp.format(
+                    DateTimeFormatter.ofPattern("a h:mm").withLocale(Locale.CHINA)
+                )
+
+                fun randomOf(vararg list: String): String =
+                    list[Random.nextInt(list.size)]
+
+                val breakDetail = when (daysAgo) {
+                    0L -> randomOf(
+                        "今日已交作业",
+                        "今天完成了释放指标",
+                        "已完成今日份输出",
+                        "今天没忍住，已记录"
+                    )
+
+                    1L -> randomOf(
+                        "昨天完成了一次",
+                        "昨日成功部署",
+                        "昨天交过作业了",
+                        "昨天有过记录"
+                    )
+
+                    2L -> randomOf(
+                        "已经鸽了 2 天",
+                        "空窗 2 天中",
+                        "连续摆烂 2 天"
+                    )
+
+                    else -> {
+                        val startFmt =
+                            lastDate.plusDays(1).format(DateTimeFormatter.ofPattern("M月d日"))
+
+                        randomOf(
+                            "已经鸽了 $daysAgo 天（自 $startFmt 起）",
+                            "空窗 $daysAgo 天了（$startFmt 开始）",
+                            "持续摆烂 $daysAgo 天（从 $startFmt 算）"
+                        )
+                    }
+                }
+
+                LatestSessionInfo(
+                    daysAgo = daysAgo,
+                    displayDate = displayDate,
+                    time = time,
+                    durationSeconds = latest.duration,
+                    breakDetail = breakDetail
+                )
+            }
+        }
+    }
+
     val scrollBehavior =
         TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
     Scaffold(
@@ -281,6 +366,13 @@ fun StatisticsScreen() {
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
+
+                    item {
+                        LatestSessionCard(
+                            latestInfo = latestSessionInfo,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                     // 总体统计卡片
                     item {
                         TotalStatCard(
@@ -545,7 +637,7 @@ private fun TotalStatCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(20.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -652,10 +744,98 @@ private fun TotalStatCard(
     }
 }
 
+@Composable
+private fun LatestSessionCard(
+    latestInfo: LatestSessionInfo?,
+    modifier: Modifier = Modifier
+) {
+    ElevatedCard(
+        modifier = modifier,
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp)
+        ) {
+            Text(
+                text = "最近一次",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            if (latestInfo == null) {
+                Text(
+                    text = "还没有开始记录哦～\n快去完成第一次吧！",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                )
+            } else {
+                val durationText = formatDuration(latestInfo.durationSeconds)
+
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Column {
+                            Text(
+                                text = latestInfo.displayDate,
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "${latestInfo.time} · 坚持了 $durationText",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    val (textColor, backgroundColor) = when (latestInfo.daysAgo) {
+                        0L -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.primaryContainer
+                        1L -> MaterialTheme.colorScheme.secondary to MaterialTheme.colorScheme.secondaryContainer
+                        else -> MaterialTheme.colorScheme.error to MaterialTheme.colorScheme.errorContainer
+                    }
+
+                    Surface(
+                        shape = MaterialTheme.shapes.medium,
+                        color = backgroundColor,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = latestInfo.breakDetail,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = textColor,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 // 每日统计数据类
 private data class DailyStat(
     val count: Int,
     val totalDuration: Int // 秒
+)
+
+private data class LatestSessionInfo(
+    val daysAgo: Long,
+    val displayDate: String,
+    val time: String,
+    val durationSeconds: Int,
+    val breakDetail: String
 )
 
 // 条形图
