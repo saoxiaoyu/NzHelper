@@ -5,9 +5,10 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Update
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -150,23 +151,40 @@ fun MainScreen() {
         if (showUpdateDialog && latestTag != null) {
             AlertDialog(
                 onDismissRequest = { showUpdateDialog = false },
-                title = { Text("检测到新版本") },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.Update,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                },
+                title = {
+                    Text(
+                        text = "检测到新版本",
+                        style = MaterialTheme.typography.headlineSmall
+                    )
+                },
                 text = {
                     Text(
-                        "当前版本：${BuildConfig.VERSION_NAME}\n" +
+                        text = "当前版本：${BuildConfig.VERSION_NAME}\n" +
                                 "最新版本：$latestTag\n\n" +
-                                "针对你的牛牛进行了一些优化，是否前往 GitHub 下载？"
+                                "针对你的牛牛进行了一些优化，是否前往 GitHub 下载？",
+                        style = MaterialTheme.typography.bodyLarge
                     )
                 },
                 confirmButton = {
-                    TextButton(onClick = {
-                        showUpdateDialog = false
-                        val intent = Intent(
-                            Intent.ACTION_VIEW,
-                            "https://github.com/$owner/$repo/releases/latest".toUri()
-                        )
-                        context.startActivity(intent)
-                    }) { Text("去下载") }
+                    TextButton(
+                        onClick = {
+                            showUpdateDialog = false
+                            val intent = Intent(
+                                Intent.ACTION_VIEW,
+                                "https://github.com/$owner/$repo/releases/latest".toUri()
+                            )
+                            context.startActivity(intent)
+                        }
+                    ) {
+                        Text("去下载")
+                    }
                 },
                 dismissButton = {
                     TextButton(onClick = { showUpdateDialog = false }) {
@@ -175,24 +193,35 @@ fun MainScreen() {
                 }
             )
         }
+
         if (showNotifyDialog) {
             AlertDialog(
                 onDismissRequest = { showNotifyDialog = false },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.Notifications,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                },
                 title = {
-                    Text(text = "还未开启通知权限")
+                    Text(
+                        text = "还未开启通知权限",
+                        style = MaterialTheme.typography.headlineSmall
+                    )
                 },
                 text = {
-                    Text("为确保应用能在后台继续计时，请授予通知权限！")
+                    Text(
+                        text = "为确保应用能在后台继续计时，请授予通知权限！",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
                 },
                 confirmButton = {
-                    Button(
+                    TextButton(
                         onClick = {
                             openNotificationSettings(context)
                             showNotifyDialog = false
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
+                        }
                     ) {
                         Text("去开启")
                     }
