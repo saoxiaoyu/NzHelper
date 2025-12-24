@@ -368,22 +368,24 @@ fun StatisticsScreen() {
                 ) {
 
                     item {
-                        LatestSessionCard(
-                            latestInfo = latestSessionInfo,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                    // 总体统计卡片
-                    item {
-                        TotalStatCard(
-                            totalCount = totalStats.first,
-                            totalSeconds = totalStats.second,
-                            avgMinutes = totalStats.third,
-                            weekCount = weekCount,
-                            monthCount = monthCount,
-                            yearCount = yearCount,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            LatestSessionCard(
+                                latestInfo = latestSessionInfo,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            TotalStatCard(
+                                totalCount = totalStats.first,
+                                totalSeconds = totalStats.second,
+                                avgMinutes = totalStats.third,
+                                weekCount = weekCount,
+                                monthCount = monthCount,
+                                yearCount = yearCount,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
 
                     item {
