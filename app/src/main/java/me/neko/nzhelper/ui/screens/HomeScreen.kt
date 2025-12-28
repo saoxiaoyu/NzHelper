@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -25,13 +26,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -40,7 +43,6 @@ import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
@@ -60,24 +62,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
 import me.neko.nzhelper.data.Session
 import me.neko.nzhelper.data.SessionRepository
-import me.neko.nzhelper.ui.details.DetailsDialog
+import me.neko.nzhelper.ui.dialog.DetailsDialog
 import me.neko.nzhelper.ui.service.TimerService
 import java.time.LocalDateTime
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class,
+
+@OptIn(
+    ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class,
     ExperimentalMaterial3ExpressiveApi::class
 )
 @Composable
 fun HomeScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
+    val scrollBehavior =
+        TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
 
     // 绑定 Service
     val serviceIntent = remember { Intent(context, TimerService::class.java) }
@@ -186,7 +192,6 @@ fun HomeScreen() {
                             horizontalArrangement = Arrangement.spacedBy(48.dp), // 间距稍大，因为点击区域更大
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // 纯图标：开始/暂停
                             IconButton(
                                 onClick = { isRunning = !isRunning },
                                 modifier = Modifier
@@ -204,11 +209,11 @@ fun HomeScreen() {
                                 )
                             }
 
-                            // 纯图标：结束
                             IconButton(
                                 onClick = {
                                     if (elapsedSeconds > 0) showConfirmDialog = true
-                                    else Toast.makeText(context, "计时尚未开始", Toast.LENGTH_SHORT).show()
+                                    else Toast.makeText(context, "计时尚未开始", Toast.LENGTH_SHORT)
+                                        .show()
                                 },
                                 modifier = Modifier
                                     .size(64.dp)
@@ -229,22 +234,70 @@ fun HomeScreen() {
                 }
             }
 
-            // 结束确认对话框
             if (showConfirmDialog) {
                 AlertDialog(
                     onDismissRequest = { showConfirmDialog = false },
-                    title = { Text("结束") },
-                    text = { Text("要结束对牛牛的爱抚了吗？") },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            showConfirmDialog = false
-                            showDetailsDialog = true
-                            isRunning = false // 自动暂停
-                        }) { Text("燃尽了") }
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Outlined.FavoriteBorder,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     },
-                    dismissButton = {
-                        TextButton(onClick = { showConfirmDialog = false }) { Text("再坚持一下") }
-                    }
+                    title = {
+                        Text(
+                            text = "结束了吗？",
+                            style = MaterialTheme.typography.headlineSmall
+                        )
+                    },
+                    text = {
+                        Text(
+                            text = "要结束对牛牛的爱抚了吗？",
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center
+                        )
+                    },
+                    confirmButton = {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = { showConfirmDialog = false },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp),
+                                shape = RoundedCornerShape(18.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.secondary
+                                )
+                            ) {
+                                Text("再坚持一下")
+                            }
+
+                            Button(
+                                onClick = {
+                                    showConfirmDialog = false
+                                    showDetailsDialog = true
+                                    isRunning = false
+                                },
+                                modifier = Modifier.height(44.dp),
+                                shape = RoundedCornerShape(18.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.error
+                                )
+                            ) {
+                                Text("燃尽了")
+                            }
+                        }
+                    },
+
+                    dismissButton = {}
                 )
             }
 

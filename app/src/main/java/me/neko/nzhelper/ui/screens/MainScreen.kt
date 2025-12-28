@@ -3,26 +3,15 @@ package me.neko.nzhelper.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Update
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -35,9 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.net.toUri
 import androidx.navigation.NavController
@@ -48,6 +35,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import me.neko.nzhelper.BuildConfig
 import me.neko.nzhelper.ui.BottomNavItem
+import me.neko.nzhelper.ui.dialog.CustomAppAlertDialog
 import me.neko.nzhelper.ui.screens.statistics.StatisticsScreen
 import me.neko.nzhelper.ui.util.UpdateChecker
 
@@ -161,144 +149,38 @@ fun MainScreen() {
         }
 
         if (showUpdateDialog && latestTag != null) {
-            AlertDialog(
+            CustomAppAlertDialog(
                 onDismissRequest = { showUpdateDialog = false },
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.Update,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
+                iconVector = Icons.Default.Update,
+                title = "检测到新版本",
+                message = "当前版本：${BuildConfig.VERSION_NAME}\n" +
+                        "最新版本：$latestTag\n\n" +
+                        "有新版本发布啦，是否前往 GitHub 下载？",
+                confirmText = "去下载",
+                confirmIcon = Icons.Default.Download,
+                dismissText = "稍后再说",
+                onConfirm = {
+                    val intent = Intent(
+                        Intent.ACTION_VIEW,
+                        "https://github.com/$owner/$repo/releases/latest".toUri()
                     )
-                },
-                title = {
-                    Text(
-                        text = "检测到新版本",
-                        style = MaterialTheme.typography.headlineSmall
-                    )
-                },
-                text = {
-                    Text(
-                        text = "当前版本：${BuildConfig.VERSION_NAME}\n" +
-                                "最新版本：$latestTag\n\n" +
-                                "有新版本发布啦，是否前往 GitHub 下载？",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center
-                    )
-                },
-                confirmButton = {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                showUpdateDialog = false
-                                val intent = Intent(
-                                    Intent.ACTION_VIEW,
-                                    "https://github.com/$owner/$repo/releases/latest".toUri()
-                                )
-                                context.startActivity(intent)
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(20.dp),
-                            contentPadding = PaddingValues(vertical = 14.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Download,
-                                contentDescription = null
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = "去下载",
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                        }
-
-                        FilledTonalButton(
-                            onClick = { showUpdateDialog = false },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(20.dp),
-                            contentPadding = PaddingValues(vertical = 14.dp)
-                        ) {
-                            Text(
-                                text = "稍后再说",
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                        }
-                    }
-                },
-                dismissButton = {}
+                    context.startActivity(intent)
+                }
             )
         }
 
         if (showNotifyDialog) {
-            AlertDialog(
+            CustomAppAlertDialog(
                 onDismissRequest = { showNotifyDialog = false },
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.Notifications,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                },
-                title = {
-                    Text(
-                        text = "还未开启通知权限",
-                        style = MaterialTheme.typography.headlineSmall
-                    )
-                },
-                text = {
-                    Text(
-                        text = "为确保应用能在后台继续计时，请授予通知权限！",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center
-                    )
-                },
-                confirmButton = {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                openNotificationSettings(context)
-                                showNotifyDialog = false
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(20.dp),
-                            contentPadding = PaddingValues(vertical = 14.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = null
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = "开启通知",
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                        }
-
-                        FilledTonalButton(
-                            onClick = { showNotifyDialog = false },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(20.dp),
-                            contentPadding = PaddingValues(vertical = 14.dp)
-                        ) {
-                            Text(
-                                text = "暂不开启",
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                        }
-                    }
-                },
-                dismissButton = {}
+                iconVector = Icons.Default.Notifications,
+                title = "还未开启通知权限",
+                message = "为确保应用能在后台继续计时，请授予通知权限！",
+                confirmText = "开启通知",
+                confirmIcon = Icons.Default.Settings,
+                dismissText = "暂不开启",
+                onConfirm = {
+                    openNotificationSettings(context)
+                }
             )
         }
     }

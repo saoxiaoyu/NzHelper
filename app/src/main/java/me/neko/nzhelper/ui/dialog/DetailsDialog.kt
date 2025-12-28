@@ -1,4 +1,4 @@
-package me.neko.nzhelper.ui.details
+package me.neko.nzhelper.ui.dialog
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
