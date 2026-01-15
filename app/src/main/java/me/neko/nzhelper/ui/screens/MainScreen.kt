@@ -34,6 +34,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import me.neko.nzhelper.BuildConfig
+import me.neko.nzhelper.data.SettingsRepository.ThemeMode
 import me.neko.nzhelper.ui.BottomNavItem
 import me.neko.nzhelper.ui.dialog.CustomAppAlertDialog
 import me.neko.nzhelper.ui.screens.statistics.StatisticsScreen
@@ -70,7 +71,12 @@ fun BottomNavigationBar(navController: NavController) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen() {
+fun MainScreen(
+    onThemeChanged: (ThemeMode) -> Unit = {},
+    onDynamicColorChanged: (Boolean) -> Unit = {},
+    currentThemeMode: ThemeMode = ThemeMode.SYSTEM,
+    currentDynamicColor: Boolean = true
+) {
     val navController = rememberNavController()
     val context = LocalContext.current
 
@@ -142,7 +148,15 @@ fun MainScreen() {
         ) {
             composable(BottomNavItem.Home.route) { HomeScreen() }
             composable(BottomNavItem.History.route) { HistoryScreen() }
-            composable(BottomNavItem.Settings.route) { SettingsScreen(navController) }
+            composable(BottomNavItem.Settings.route) { 
+                SettingsScreen(
+                    navController = navController,
+                    currentThemeMode = currentThemeMode,
+                    onThemeChanged = onThemeChanged,
+                    currentDynamicColor = currentDynamicColor,
+                    onDynamicColorChanged = onDynamicColorChanged
+                )
+            }
             composable(BottomNavItem.Statistics.route) { StatisticsScreen() }
             composable("about") { AboutScreen(navController) }
             composable("open_source") { OpenSourceScreen(navController) }
@@ -192,3 +206,4 @@ fun MainScreen() {
 fun MainScreenPreview() {
     MainScreen()
 }
+
