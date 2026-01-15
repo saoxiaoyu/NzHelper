@@ -17,6 +17,7 @@ moshi = "1.15.2"
 moshiKotlin = "1.15.2"
 navigationCompose = "2.9.0"
 okhttp = "5.3.2"
+biometric = "1.2.0-alpha05"
 
 [libraries]
 androidx-compose-material3-adaptive-navigation-suite = { module = "androidx.compose.material3:material3-adaptive-navigation-suite", version.ref = "material3AdaptiveNavigationSuite" }
@@ -42,6 +43,7 @@ androidx-material3 = { group = "androidx.compose.material3", name = "material3" 
 moshi = { module = "com.squareup.moshi:moshi", version.ref = "moshi" }
 moshi-kotlin = { module = "com.squareup.moshi:moshi-kotlin", version.ref = "moshiKotlin" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

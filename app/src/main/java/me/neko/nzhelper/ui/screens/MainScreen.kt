@@ -74,8 +74,10 @@ fun BottomNavigationBar(navController: NavController) {
 fun MainScreen(
     onThemeChanged: (ThemeMode) -> Unit = {},
     onDynamicColorChanged: (Boolean) -> Unit = {},
+    onAppLockChanged: (Boolean) -> Unit = {},
     currentThemeMode: ThemeMode = ThemeMode.SYSTEM,
-    currentDynamicColor: Boolean = true
+    currentDynamicColor: Boolean = true,
+    currentAppLockEnabled: Boolean = false
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
@@ -154,7 +156,9 @@ fun MainScreen(
                     currentThemeMode = currentThemeMode,
                     onThemeChanged = onThemeChanged,
                     currentDynamicColor = currentDynamicColor,
-                    onDynamicColorChanged = onDynamicColorChanged
+                    onDynamicColorChanged = onDynamicColorChanged,
+                    currentAppLockEnabled = currentAppLockEnabled,
+                    onAppLockChanged = onAppLockChanged
                 )
             }
             composable(BottomNavItem.Statistics.route) { StatisticsScreen() }

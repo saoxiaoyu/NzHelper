@@ -1,6 +1,13 @@
 package me.neko.nzhelper.ui.screens
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,11 +25,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BrightnessMedium
-import androidx.compose.material.icons.outlined.ColorLens
 import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.FileUpload
+import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
@@ -39,18 +53,34 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.core.app.NotificationManagerCompat
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.google.gson.JsonParser.parseString
+import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import me.neko.nzhelper.NzApplication
+import me.neko.nzhelper.data.Session
+import me.neko.nzhelper.data.SessionRepository
 import me.neko.nzhelper.data.SettingsRepository.ThemeMode
+import me.neko.nzhelper.ui.dialog.CustomAppAlertDialog
+import java.io.OutputStreamWriter
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -59,10 +89,146 @@ fun SettingsScreen(
     currentThemeMode: ThemeMode = ThemeMode.SYSTEM,
     onThemeChanged: (ThemeMode) -> Unit = {},
     currentDynamicColor: Boolean = true,
-    onDynamicColorChanged: (Boolean) -> Unit = {}
+    onDynamicColorChanged: (Boolean) -> Unit = {},
+    currentAppLockEnabled: Boolean = false,
+    onAppLockChanged: (Boolean) -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
+    
     var showThemeDialog by remember { mutableStateOf(false) }
+    var showClearDialog by remember { mutableStateOf(false) }
+    
+    // 通知权限状态
+    val notificationsEnabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
+    
+    // 数据管理相关
+    val sessions = remember { mutableStateListOf<Session>() }
+    val sessionsTypeToken = object : TypeToken<List<Session>>() {}.type
+    
+    // 导入数据
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let { importUri ->
+            scope.launch {
+                try {
+                    context.contentResolver.openInputStream(importUri)?.use { inputStream ->
+                        val jsonStr = inputStream.bufferedReader().readText()
+                        val importedSessions = mutableListOf<Session>()
+
+                        var success = false
+                        try {
+                            val newList: List<Session> =
+                                NzApplication.gson.fromJson(jsonStr, sessionsTypeToken)
+                            importedSessions.addAll(newList)
+                            success = true
+                        } catch (_: Exception) { }
+
+                        if (!success) {
+                            try {
+                                val root = parseString(jsonStr).asJsonArray
+                                for (elem in root) {
+                                    if (elem.isJsonArray) {
+                                        val arr = elem.asJsonArray
+                                        val timeStr = arr[0].asString
+                                        val timestamp = LocalDateTime.parse(
+                                            timeStr,
+                                            DateTimeFormatter.ISO_LOCAL_DATE_TIME
+                                        )
+                                        val duration = if (arr.size() > 1) arr[1].asInt else 0
+                                        val remark = if (arr.size() > 2 && !arr[2].isJsonNull) arr[2].asString else ""
+                                        val location = if (arr.size() > 3 && !arr[3].isJsonNull) arr[3].asString else ""
+                                        val watchedMovie = if (arr.size() > 4) arr[4].asBoolean else false
+                                        val climax = if (arr.size() > 5) arr[5].asBoolean else false
+                                        val rating = if (arr.size() > 6 && !arr[6].isJsonNull)
+                                            arr[6].asFloat.coerceIn(0f, 5f) else 3f
+                                        val mood = if (arr.size() > 7 && !arr[7].isJsonNull) arr[7].asString else "平静"
+                                        val props = if (arr.size() > 8 && !arr[8].isJsonNull) arr[8].asString else "手"
+
+                                        importedSessions.add(
+                                            Session(
+                                                timestamp = timestamp,
+                                                duration = duration,
+                                                remark = remark,
+                                                location = location,
+                                                watchedMovie = watchedMovie,
+                                                climax = climax,
+                                                rating = rating,
+                                                mood = mood,
+                                                props = props
+                                            )
+                                        )
+                                    }
+                                }
+                            } catch (_: Exception) { }
+                        }
+
+                        if (importedSessions.isNotEmpty()) {
+                            sessions.clear()
+                            sessions.addAll(importedSessions)
+                            SessionRepository.saveSessions(context, sessions)
+
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(
+                                    context,
+                                    "成功导入 ${importedSessions.size} 条记录",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        } else {
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(context, "导入失败：文件格式不正确", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "导入失败：${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
+
+    // 导出数据
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? ->
+        uri?.let { exportUri ->
+            scope.launch {
+                try {
+                    val loadedSessions = SessionRepository.loadSessions(context)
+                    context.contentResolver.openOutputStream(exportUri)?.use { os ->
+                        OutputStreamWriter(os).use { writer ->
+                            writer.write(NzApplication.gson.toJson(loadedSessions))
+                        }
+                    }
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "导出成功", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "导出失败：${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
+
+    // 打开通知设置
+    fun openNotificationSettings() {
+        val intent = Intent().apply {
+            action = Settings.ACTION_APP_NOTIFICATION_SETTINGS
+            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            putExtra("app_uid", context.applicationInfo.uid)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    }
 
     Scaffold(
         topBar = {
@@ -81,12 +247,7 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             // ==================== 外观设置分组 ====================
-            Text(
-                text = "外观",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
-            )
+            SettingsSectionHeader("外观")
 
             // 主题模式
             ListItem(
@@ -122,10 +283,7 @@ fun SettingsScreen(
                 ListItem(
                     modifier = Modifier.fillMaxWidth(),
                     leadingContent = {
-                        Icon(
-                            imageVector = Icons.Outlined.Palette,
-                            contentDescription = null,
-                        )
+                        Icon(imageVector = Icons.Outlined.Palette, contentDescription = null)
                     },
                     headlineContent = {
                         Text(text = "动态颜色", style = MaterialTheme.typography.titleMedium)
@@ -144,26 +302,139 @@ fun SettingsScreen(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-            // ==================== 其他设置分组 ====================
-            Text(
-                text = "其他",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp)
+            // ==================== 隐私安全分组 ====================
+            SettingsSectionHeader("隐私安全")
+
+            // 应用锁
+            ListItem(
+                modifier = Modifier.fillMaxWidth(),
+                leadingContent = {
+                    Icon(imageVector = Icons.Outlined.Fingerprint, contentDescription = null)
+                },
+                headlineContent = {
+                    Text(text = "应用锁", style = MaterialTheme.typography.titleMedium)
+                },
+                supportingContent = {
+                    Text(text = "启动应用时需要验证身份")
+                },
+                trailingContent = {
+                    Switch(
+                        checked = currentAppLockEnabled,
+                        onCheckedChange = onAppLockChanged
+                    )
+                }
             )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            // ==================== 通知分组 ====================
+            SettingsSectionHeader("通知")
+
+            // 通知设置
+            ListItem(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { openNotificationSettings() },
+                leadingContent = {
+                    Icon(
+                        imageVector = if (notificationsEnabled) 
+                            Icons.Outlined.Notifications 
+                        else 
+                            Icons.Outlined.NotificationsOff,
+                        contentDescription = null
+                    )
+                },
+                headlineContent = {
+                    Text(text = "通知权限", style = MaterialTheme.typography.titleMedium)
+                },
+                supportingContent = {
+                    Text(
+                        text = if (notificationsEnabled) "已开启" else "未开启，点击前往设置",
+                        color = if (notificationsEnabled) 
+                            MaterialTheme.colorScheme.onSurfaceVariant 
+                        else 
+                            MaterialTheme.colorScheme.error
+                    )
+                }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            // ==================== 数据管理分组 ====================
+            SettingsSectionHeader("数据管理")
+
+            // 导出数据
+            ListItem(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        exportLauncher.launch("NzHelper_export_${System.currentTimeMillis()}.json")
+                    },
+                leadingContent = {
+                    Icon(imageVector = Icons.Outlined.FileDownload, contentDescription = null)
+                },
+                headlineContent = {
+                    Text(text = "导出数据", style = MaterialTheme.typography.titleMedium)
+                },
+                supportingContent = {
+                    Text(text = "将记录导出为 JSON 文件")
+                }
+            )
+
+            // 导入数据
+            ListItem(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        importLauncher.launch(arrayOf("application/json"))
+                    },
+                leadingContent = {
+                    Icon(imageVector = Icons.Outlined.FileUpload, contentDescription = null)
+                },
+                headlineContent = {
+                    Text(text = "导入数据", style = MaterialTheme.typography.titleMedium)
+                },
+                supportingContent = {
+                    Text(text = "从 JSON 文件导入（将覆盖当前数据）")
+                }
+            )
+
+            // 清除数据
+            ListItem(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showClearDialog = true },
+                leadingContent = {
+                    Icon(
+                        imageVector = Icons.Outlined.Delete,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                },
+                headlineContent = {
+                    Text(
+                        text = "清除所有数据",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                },
+                supportingContent = {
+                    Text(text = "删除所有记录，此操作不可撤销")
+                }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            // ==================== 其他设置分组 ====================
+            SettingsSectionHeader("其他")
 
             // 关于
             ListItem(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable {
-                        navController.navigate("about")
-                    },
+                    .clickable { navController.navigate("about") },
                 leadingContent = {
-                    Icon(
-                        imageVector = Icons.Outlined.Info,
-                        contentDescription = null,
-                    )
+                    Icon(imageVector = Icons.Outlined.Info, contentDescription = null)
                 },
                 headlineContent = {
                     Text(text = "关于", style = MaterialTheme.typography.titleMedium)
@@ -184,7 +455,39 @@ fun SettingsScreen(
                 onDismiss = { showThemeDialog = false }
             )
         }
+
+        // 清除数据确认对话框
+        if (showClearDialog) {
+            CustomAppAlertDialog(
+                onDismissRequest = { showClearDialog = false },
+                iconVector = Icons.Rounded.Warning,
+                title = "清除全部数据",
+                message = "此操作不可撤销，确定要删除所有记录吗？",
+                confirmText = "删除全部",
+                confirmIcon = Icons.Rounded.DeleteForever,
+                dismissText = "取消",
+                onConfirm = {
+                    scope.launch {
+                        SessionRepository.saveSessions(context, emptyList())
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(context, "已清除所有数据", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+                onDismiss = { showClearDialog = false }
+            )
+        }
     }
+}
+
+@Composable
+private fun SettingsSectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
+    )
 }
 
 @Composable
