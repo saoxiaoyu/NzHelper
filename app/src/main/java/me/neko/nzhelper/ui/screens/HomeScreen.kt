@@ -73,6 +73,7 @@ import me.neko.nzhelper.data.SessionRepository
 import me.neko.nzhelper.ui.dialog.DetailsDialog
 import me.neko.nzhelper.ui.service.TimerService
 import me.neko.nzhelper.ui.viewmodel.HomeViewModel
+import me.neko.nzhelper.ui.components.AnalogClock
 import me.neko.nzhelper.util.TimeUtils
 import java.time.LocalDateTime
 
@@ -177,14 +178,12 @@ fun HomeScreen() {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(24.dp),
                     ) {
-                        Text(
-                            text = "记录新的手艺活",
-                            style = MaterialTheme.typography.headlineMedium
+                        // 模拟时钟显示当前时间
+                        AnalogClock(
+                            size = 160.dp
                         )
-                        Text(
-                            text = "准备开始",
-                            style = MaterialTheme.typography.headlineLarge
-                        )
+                        
+                        // 计时器显示
                         Text(
                             text = TimeUtils.formatTime(elapsedSeconds),
                             style = MaterialTheme.typography.displayLarge,

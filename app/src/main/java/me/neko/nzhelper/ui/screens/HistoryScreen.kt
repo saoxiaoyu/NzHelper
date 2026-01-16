@@ -66,7 +66,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import me.neko.nzhelper.data.ImportResult
 import me.neko.nzhelper.data.Session
 import me.neko.nzhelper.data.SessionRepository
@@ -108,18 +110,21 @@ fun HistoryScreen() {
     ) { uri: Uri? ->
         uri?.let { importUri ->
             scope.launch {
-                when (val result = SessionRepository.importFromUri(context, importUri)) {
-                    is ImportResult.Success -> {
-                        sessions.clear()
-                        sessions.addAll(result.sessions)
-                        Toast.makeText(
-                            context,
-                            "成功导入 ${result.count} 条记录",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                    is ImportResult.Error -> {
-                        Toast.makeText(context, "导入失败：${result.message}", Toast.LENGTH_SHORT).show()
+                val result = SessionRepository.importFromUri(context, importUri)
+                withContext(Dispatchers.Main) {
+                    when (result) {
+                        is ImportResult.Success -> {
+                            sessions.clear()
+                            sessions.addAll(result.sessions)
+                            Toast.makeText(
+                                context,
+                                "成功导入 ${result.count} 条记录",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                        is ImportResult.Error -> {
+                            Toast.makeText(context, "导入失败：${result.message}", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 }
             }
@@ -132,10 +137,12 @@ fun HistoryScreen() {
         uri?.let { exportUri ->
             scope.launch {
                 val success = SessionRepository.exportToUri(context, exportUri)
-                if (success) {
-                    Toast.makeText(context, "导出成功", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(context, "导出失败", Toast.LENGTH_SHORT).show()
+                withContext(Dispatchers.Main) {
+                    if (success) {
+                        Toast.makeText(context, "导出成功", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "导出失败", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         }

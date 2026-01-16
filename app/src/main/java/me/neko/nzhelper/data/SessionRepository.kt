@@ -125,55 +125,53 @@ object SessionRepository {
                 val jsonStr = inputStream.bufferedReader().readText()
                 val importedSessions = mutableListOf<Session>()
 
-                // 尝试新格式：对象数组
-                var success = false
-                try {
-                    val newList: List<Session> = gson.fromJson(jsonStr, sessionsTypeToken)
-                    importedSessions.addAll(newList)
-                    success = true
-                } catch (_: Exception) {
-                    // 新格式解析失败，继续尝试旧格式
-                }
-
-                // 尝试旧格式：嵌套数组
-                if (!success) {
+                val root = JsonParser.parseString(jsonStr).asJsonArray
+                
+                for (elem in root) {
                     try {
-                        val root = JsonParser.parseString(jsonStr).asJsonArray
-                        for (elem in root) {
-                            if (elem.isJsonArray) {
-                                val arr = elem.asJsonArray
-                                val timeStr = arr[0].asString
-                                val timestamp = LocalDateTime.parse(
-                                    timeStr,
-                                    DateTimeFormatter.ISO_LOCAL_DATE_TIME
+                        if (elem.isJsonObject) {
+                            // 新格式：对象数组 (手动解析以处理可选的 id 字段)
+                            val obj = elem.asJsonObject
+                            val timestampStr = obj.get("timestamp")?.asString ?: continue
+                            val timestamp = LocalDateTime.parse(timestampStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                            
+                            importedSessions.add(
+                                Session(
+                                    id = 0, // 导入时总是使用新 id
+                                    timestamp = timestamp,
+                                    duration = obj.get("duration")?.asInt ?: 0,
+                                    remark = if (obj.has("remark") && !obj.get("remark").isJsonNull) obj.get("remark").asString else "",
+                                    location = if (obj.has("location") && !obj.get("location").isJsonNull) obj.get("location").asString else "",
+                                    watchedMovie = obj.get("watchedMovie")?.asBoolean ?: false,
+                                    climax = obj.get("climax")?.asBoolean ?: false,
+                                    rating = if (obj.has("rating") && !obj.get("rating").isJsonNull) obj.get("rating").asFloat.coerceIn(0f, 5f) else 3f,
+                                    mood = if (obj.has("mood") && !obj.get("mood").isJsonNull) obj.get("mood").asString else "平静",
+                                    props = if (obj.has("props") && !obj.get("props").isJsonNull) obj.get("props").asString else "手"
                                 )
-                                val duration = if (arr.size() > 1) arr[1].asInt else 0
-                                val remark = if (arr.size() > 2 && !arr[2].isJsonNull) arr[2].asString else ""
-                                val location = if (arr.size() > 3 && !arr[3].isJsonNull) arr[3].asString else ""
-                                val watchedMovie = if (arr.size() > 4) arr[4].asBoolean else false
-                                val climax = if (arr.size() > 5) arr[5].asBoolean else false
-                                val rating = if (arr.size() > 6 && !arr[6].isJsonNull)
-                                    arr[6].asFloat.coerceIn(0f, 5f) else 3f
-                                val mood = if (arr.size() > 7 && !arr[7].isJsonNull) arr[7].asString else "平静"
-                                val props = if (arr.size() > 8 && !arr[8].isJsonNull) arr[8].asString else "手"
-
-                                importedSessions.add(
-                                    Session(
-                                        timestamp = timestamp,
-                                        duration = duration,
-                                        remark = remark,
-                                        location = location,
-                                        watchedMovie = watchedMovie,
-                                        climax = climax,
-                                        rating = rating,
-                                        mood = mood,
-                                        props = props
-                                    )
+                            )
+                        } else if (elem.isJsonArray) {
+                            // 旧格式：嵌套数组
+                            val arr = elem.asJsonArray
+                            val timeStr = arr[0].asString
+                            val timestamp = LocalDateTime.parse(timeStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                            
+                            importedSessions.add(
+                                Session(
+                                    timestamp = timestamp,
+                                    duration = if (arr.size() > 1) arr[1].asInt else 0,
+                                    remark = if (arr.size() > 2 && !arr[2].isJsonNull) arr[2].asString else "",
+                                    location = if (arr.size() > 3 && !arr[3].isJsonNull) arr[3].asString else "",
+                                    watchedMovie = if (arr.size() > 4) arr[4].asBoolean else false,
+                                    climax = if (arr.size() > 5) arr[5].asBoolean else false,
+                                    rating = if (arr.size() > 6 && !arr[6].isJsonNull) arr[6].asFloat.coerceIn(0f, 5f) else 3f,
+                                    mood = if (arr.size() > 7 && !arr[7].isJsonNull) arr[7].asString else "平静",
+                                    props = if (arr.size() > 8 && !arr[8].isJsonNull) arr[8].asString else "手"
                                 )
-                            }
+                            )
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
+                        // 跳过解析失败的单条记录，继续处理其他记录
                     }
                 }
 
@@ -181,7 +179,7 @@ object SessionRepository {
                     saveSessions(context, importedSessions)
                     ImportResult.Success(importedSessions, importedSessions.size)
                 } else {
-                    ImportResult.Error("文件格式不正确")
+                    ImportResult.Error("文件格式不正确或没有有效数据")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -235,5 +233,109 @@ object SessionRepository {
                 false
             }
         }
-}
 
+    // ==================== WebDAV 备份/恢复 ====================
+
+    private const val WEBDAV_BACKUP_FILENAME = "nzhelper_backup.json"
+
+    /**
+     * 备份数据到 WebDAV
+     */
+    suspend fun backupToWebDav(context: Context): WebDavResult<Boolean> =
+        withContext(Dispatchers.IO) {
+            try {
+                val url = SettingsRepository.getWebDavUrl(context).trimEnd('/') + "/" + WEBDAV_BACKUP_FILENAME
+                val username = SettingsRepository.getWebDavUsername(context)
+                val password = SettingsRepository.getWebDavPassword(context)
+
+                if (url.isEmpty() || username.isEmpty() || password.isEmpty()) {
+                    return@withContext WebDavResult.Error("WebDAV 未配置")
+                }
+
+                val sessions = loadSessions(context)
+                val jsonData = gson.toJson(sessions)
+
+                WebDavClient.upload(url, username, password, jsonData)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                WebDavResult.Error(e.message ?: "备份失败")
+            }
+        }
+
+    /**
+     * 从 WebDAV 恢复数据
+     */
+    suspend fun restoreFromWebDav(context: Context): ImportResult =
+        withContext(Dispatchers.IO) {
+            try {
+                val url = SettingsRepository.getWebDavUrl(context).trimEnd('/') + "/" + WEBDAV_BACKUP_FILENAME
+                val username = SettingsRepository.getWebDavUsername(context)
+                val password = SettingsRepository.getWebDavPassword(context)
+
+                if (url.isEmpty() || username.isEmpty() || password.isEmpty()) {
+                    return@withContext ImportResult.Error("WebDAV 未配置")
+                }
+
+                when (val result = WebDavClient.download(url, username, password)) {
+                    is WebDavResult.Success -> {
+                        // 解析下载的 JSON 数据
+                        importFromJsonString(context, result.data)
+                    }
+                    is WebDavResult.Error -> {
+                        ImportResult.Error(result.message)
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                ImportResult.Error(e.message ?: "恢复失败")
+            }
+        }
+
+    /**
+     * 从 JSON 字符串导入会话数据
+     */
+    private suspend fun importFromJsonString(context: Context, jsonStr: String): ImportResult =
+        withContext(Dispatchers.IO) {
+            try {
+                val importedSessions = mutableListOf<Session>()
+                val root = JsonParser.parseString(jsonStr).asJsonArray
+
+                for (elem in root) {
+                    try {
+                        if (elem.isJsonObject) {
+                            val obj = elem.asJsonObject
+                            val timestampStr = obj.get("timestamp")?.asString ?: continue
+                            val timestamp = LocalDateTime.parse(timestampStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+
+                            importedSessions.add(
+                                Session(
+                                    id = 0,
+                                    timestamp = timestamp,
+                                    duration = obj.get("duration")?.asInt ?: 0,
+                                    remark = if (obj.has("remark") && !obj.get("remark").isJsonNull) obj.get("remark").asString else "",
+                                    location = if (obj.has("location") && !obj.get("location").isJsonNull) obj.get("location").asString else "",
+                                    watchedMovie = obj.get("watchedMovie")?.asBoolean ?: false,
+                                    climax = obj.get("climax")?.asBoolean ?: false,
+                                    rating = if (obj.has("rating") && !obj.get("rating").isJsonNull) obj.get("rating").asFloat.coerceIn(0f, 5f) else 3f,
+                                    mood = if (obj.has("mood") && !obj.get("mood").isJsonNull) obj.get("mood").asString else "平静",
+                                    props = if (obj.has("props") && !obj.get("props").isJsonNull) obj.get("props").asString else "手"
+                                )
+                            )
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+
+                if (importedSessions.isNotEmpty()) {
+                    saveSessions(context, importedSessions)
+                    ImportResult.Success(importedSessions, importedSessions.size)
+                } else {
+                    ImportResult.Error("备份文件格式不正确")
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                ImportResult.Error(e.message ?: "解析备份数据失败")
+            }
+        }
+}

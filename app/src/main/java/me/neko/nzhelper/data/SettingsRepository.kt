@@ -63,4 +63,55 @@ object SettingsRepository {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit { putBoolean(KEY_APP_LOCK, enabled) }
     }
+
+    // ==================== WebDAV 设置 ====================
+
+    private const val KEY_WEBDAV_URL = "webdav_url"
+    private const val KEY_WEBDAV_USERNAME = "webdav_username"
+    private const val KEY_WEBDAV_PASSWORD = "webdav_password"
+
+    fun getWebDavUrl(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_WEBDAV_URL, "") ?: ""
+    }
+
+    fun setWebDavUrl(context: Context, url: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit { putString(KEY_WEBDAV_URL, url) }
+    }
+
+    fun getWebDavUsername(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_WEBDAV_USERNAME, "") ?: ""
+    }
+
+    fun setWebDavUsername(context: Context, username: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit { putString(KEY_WEBDAV_USERNAME, username) }
+    }
+
+    fun getWebDavPassword(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_WEBDAV_PASSWORD, "") ?: ""
+    }
+
+    fun setWebDavPassword(context: Context, password: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit { putString(KEY_WEBDAV_PASSWORD, password) }
+    }
+
+    fun isWebDavConfigured(context: Context): Boolean {
+        return getWebDavUrl(context).isNotEmpty() &&
+               getWebDavUsername(context).isNotEmpty() &&
+               getWebDavPassword(context).isNotEmpty()
+    }
+
+    fun saveWebDavConfig(context: Context, url: String, username: String, password: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit {
+            putString(KEY_WEBDAV_URL, url)
+            putString(KEY_WEBDAV_USERNAME, username)
+            putString(KEY_WEBDAV_PASSWORD, password)
+        }
+    }
 }

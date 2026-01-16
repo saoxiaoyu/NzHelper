@@ -1,5 +1,8 @@
 package me.neko.nzhelper.ui.screens
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.widget.Toast
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
@@ -29,6 +32,18 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 
 /**
+ * 从 Context 中查找 FragmentActivity
+ */
+private fun Context.findFragmentActivity(): FragmentActivity? {
+    var context = this
+    while (context is ContextWrapper) {
+        if (context is FragmentActivity) return context
+        context = context.baseContext
+    }
+    return null
+}
+
+/**
  * 应用锁屏界面
  * 用于在应用启动时验证用户身份
  */
@@ -37,7 +52,7 @@ fun AppLockScreen(
     onUnlocked: () -> Unit
 ) {
     val context = LocalContext.current
-    val activity = context as? FragmentActivity
+    val activity = context.findFragmentActivity()
 
     // 检查生物识别可用性
     val biometricManager = BiometricManager.from(context)
