@@ -66,11 +66,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
 import me.neko.nzhelper.data.Session
 import me.neko.nzhelper.data.SessionRepository
 import me.neko.nzhelper.ui.dialog.DetailsDialog
 import me.neko.nzhelper.ui.service.TimerService
+import me.neko.nzhelper.ui.viewmodel.HomeViewModel
 import me.neko.nzhelper.util.TimeUtils
 import java.time.LocalDateTime
 

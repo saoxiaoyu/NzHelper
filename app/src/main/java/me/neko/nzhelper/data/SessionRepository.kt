@@ -2,20 +2,26 @@ package me.neko.nzhelper.data
 
 import android.content.Context
 import android.net.Uri
-import androidx.core.content.edit
 import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import me.neko.nzhelper.NzApplication
+import me.neko.nzhelper.data.db.AppDatabase
+import me.neko.nzhelper.data.db.SessionEntity
 import java.io.InputStream
 import java.io.OutputStream
 import java.io.OutputStreamWriter
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-// 公共数据类
+// 公共数据类 - 保持不变，用于 UI 层
 data class Session(
+    val id: Long = 0,
     val timestamp: LocalDateTime,
     val duration: Int,
     val remark: String,
@@ -37,33 +43,77 @@ sealed class ImportResult {
 
 object SessionRepository {
 
-    private const val PREFS_NAME = "sessions_prefs"
-    private const val KEY_SESSIONS = "sessions"
-
     private val gson = NzApplication.gson
     private val sessionsTypeToken = object : TypeToken<List<Session>>() {}.type
 
-    suspend fun loadSessions(context: Context): List<Session> = withContext(Dispatchers.IO) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val json = prefs.getString(KEY_SESSIONS, null)
-        if (json.isNullOrEmpty()) {
-            emptyList()
-        } else {
-            try {
-                gson.fromJson(json, sessionsTypeToken) ?: emptyList()
-            } catch (e: Exception) {
-                e.printStackTrace()
-                emptyList()
-            }
+    // ==================== Entity <-> Session 转换 ====================
+    
+    private fun SessionEntity.toSession(): Session = Session(
+        id = id,
+        timestamp = LocalDateTime.ofInstant(Instant.ofEpochMilli(timestamp), ZoneId.systemDefault()),
+        duration = duration,
+        remark = remark,
+        location = location,
+        watchedMovie = watchedMovie,
+        climax = climax,
+        rating = rating,
+        mood = mood,
+        props = props
+    )
+
+    private fun Session.toEntity(): SessionEntity = SessionEntity(
+        id = id,
+        timestamp = timestamp.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+        duration = duration,
+        remark = remark,
+        location = location,
+        watchedMovie = watchedMovie,
+        climax = climax,
+        rating = rating,
+        mood = mood,
+        props = props
+    )
+
+    // ==================== 数据库访问 ====================
+    
+    private fun getDao(context: Context) = AppDatabase.getDatabase(context).sessionDao()
+
+    /**
+     * 获取所有会话的 Flow
+     */
+    fun getSessionsFlow(context: Context): Flow<List<Session>> {
+        return getDao(context).getAllSessionsFlow().map { entities ->
+            entities.map { it.toSession() }
         }
+    }
+
+    suspend fun loadSessions(context: Context): List<Session> = withContext(Dispatchers.IO) {
+        getDao(context).getAllSessions().map { it.toSession() }
     }
 
     suspend fun saveSessions(context: Context, sessions: List<Session>) =
         withContext(Dispatchers.IO) {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val json = gson.toJson(sessions)
-            prefs.edit { putString(KEY_SESSIONS, json) }
+            val dao = getDao(context)
+            dao.deleteAll()
+            dao.insertAll(sessions.map { it.toEntity() })
         }
+
+    suspend fun addSession(context: Context, session: Session): Long =
+        withContext(Dispatchers.IO) {
+            getDao(context).insert(session.toEntity())
+        }
+
+    suspend fun deleteSession(context: Context, session: Session) =
+        withContext(Dispatchers.IO) {
+            getDao(context).delete(session.toEntity())
+        }
+
+    suspend fun deleteAllSessions(context: Context) =
+        withContext(Dispatchers.IO) {
+            getDao(context).deleteAll()
+        }
+
+    // ==================== 导入/导出 ====================
 
     /**
      * 从 JSON 输入流导入会话数据
@@ -186,3 +236,4 @@ object SessionRepository {
             }
         }
 }
+
