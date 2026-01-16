@@ -71,6 +71,7 @@ import me.neko.nzhelper.data.Session
 import me.neko.nzhelper.data.SessionRepository
 import me.neko.nzhelper.ui.dialog.DetailsDialog
 import me.neko.nzhelper.ui.service.TimerService
+import me.neko.nzhelper.util.TimeUtils
 import java.time.LocalDateTime
 
 
@@ -183,7 +184,7 @@ fun HomeScreen() {
                             style = MaterialTheme.typography.headlineLarge
                         )
                         Text(
-                            text = formatTime(elapsedSeconds),
+                            text = TimeUtils.formatTime(elapsedSeconds),
                             style = MaterialTheme.typography.displayLarge,
                             fontWeight = FontWeight.Bold
                         )
@@ -356,17 +357,6 @@ fun HomeScreen() {
                 }
             )
         }
-    }
-}
-
-@SuppressLint("DefaultLocale")
-private fun formatTime(totalSeconds: Int): String {
-    val h = totalSeconds / 3600
-    val m = (totalSeconds % 3600) / 60
-    val s = totalSeconds % 60
-    return buildString {
-        if (h > 0) append(String.format("%02d:", h))
-        append(String.format("%02d:%02d", m, s))
     }
 }
 

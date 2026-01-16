@@ -68,19 +68,11 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.app.NotificationManagerCompat
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
-import com.google.gson.JsonParser.parseString
-import com.google.gson.reflect.TypeToken
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import me.neko.nzhelper.NzApplication
-import me.neko.nzhelper.data.Session
+import me.neko.nzhelper.data.ImportResult
 import me.neko.nzhelper.data.SessionRepository
 import me.neko.nzhelper.data.SettingsRepository.ThemeMode
 import me.neko.nzhelper.ui.dialog.CustomAppAlertDialog
-import java.io.OutputStreamWriter
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -103,90 +95,22 @@ fun SettingsScreen(
     // 通知权限状态
     val notificationsEnabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
     
-    // 数据管理相关
-    val sessions = remember { mutableStateListOf<Session>() }
-    val sessionsTypeToken = object : TypeToken<List<Session>>() {}.type
-    
     // 导入数据
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         uri?.let { importUri ->
             scope.launch {
-                try {
-                    context.contentResolver.openInputStream(importUri)?.use { inputStream ->
-                        val jsonStr = inputStream.bufferedReader().readText()
-                        val importedSessions = mutableListOf<Session>()
-
-                        var success = false
-                        try {
-                            val newList: List<Session> =
-                                NzApplication.gson.fromJson(jsonStr, sessionsTypeToken)
-                            importedSessions.addAll(newList)
-                            success = true
-                        } catch (_: Exception) { }
-
-                        if (!success) {
-                            try {
-                                val root = parseString(jsonStr).asJsonArray
-                                for (elem in root) {
-                                    if (elem.isJsonArray) {
-                                        val arr = elem.asJsonArray
-                                        val timeStr = arr[0].asString
-                                        val timestamp = LocalDateTime.parse(
-                                            timeStr,
-                                            DateTimeFormatter.ISO_LOCAL_DATE_TIME
-                                        )
-                                        val duration = if (arr.size() > 1) arr[1].asInt else 0
-                                        val remark = if (arr.size() > 2 && !arr[2].isJsonNull) arr[2].asString else ""
-                                        val location = if (arr.size() > 3 && !arr[3].isJsonNull) arr[3].asString else ""
-                                        val watchedMovie = if (arr.size() > 4) arr[4].asBoolean else false
-                                        val climax = if (arr.size() > 5) arr[5].asBoolean else false
-                                        val rating = if (arr.size() > 6 && !arr[6].isJsonNull)
-                                            arr[6].asFloat.coerceIn(0f, 5f) else 3f
-                                        val mood = if (arr.size() > 7 && !arr[7].isJsonNull) arr[7].asString else "平静"
-                                        val props = if (arr.size() > 8 && !arr[8].isJsonNull) arr[8].asString else "手"
-
-                                        importedSessions.add(
-                                            Session(
-                                                timestamp = timestamp,
-                                                duration = duration,
-                                                remark = remark,
-                                                location = location,
-                                                watchedMovie = watchedMovie,
-                                                climax = climax,
-                                                rating = rating,
-                                                mood = mood,
-                                                props = props
-                                            )
-                                        )
-                                    }
-                                }
-                            } catch (_: Exception) { }
-                        }
-
-                        if (importedSessions.isNotEmpty()) {
-                            sessions.clear()
-                            sessions.addAll(importedSessions)
-                            SessionRepository.saveSessions(context, sessions)
-
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(
-                                    context,
-                                    "成功导入 ${importedSessions.size} 条记录",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        } else {
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(context, "导入失败：文件格式不正确", Toast.LENGTH_SHORT).show()
-                            }
-                        }
+                when (val result = SessionRepository.importFromUri(context, importUri)) {
+                    is ImportResult.Success -> {
+                        Toast.makeText(
+                            context,
+                            "成功导入 ${result.count} 条记录",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "导入失败：${e.message}", Toast.LENGTH_SHORT).show()
+                    is ImportResult.Error -> {
+                        Toast.makeText(context, "导入失败：${result.message}", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -199,21 +123,11 @@ fun SettingsScreen(
     ) { uri: Uri? ->
         uri?.let { exportUri ->
             scope.launch {
-                try {
-                    val loadedSessions = SessionRepository.loadSessions(context)
-                    context.contentResolver.openOutputStream(exportUri)?.use { os ->
-                        OutputStreamWriter(os).use { writer ->
-                            writer.write(NzApplication.gson.toJson(loadedSessions))
-                        }
-                    }
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "导出成功", Toast.LENGTH_SHORT).show()
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "导出失败：${e.message}", Toast.LENGTH_SHORT).show()
-                    }
+                val success = SessionRepository.exportToUri(context, exportUri)
+                if (success) {
+                    Toast.makeText(context, "导出成功", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "导出失败", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -469,9 +383,7 @@ fun SettingsScreen(
                 onConfirm = {
                     scope.launch {
                         SessionRepository.saveSessions(context, emptyList())
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "已清除所有数据", Toast.LENGTH_SHORT).show()
-                        }
+                        Toast.makeText(context, "已清除所有数据", Toast.LENGTH_SHORT).show()
                     }
                 },
                 onDismiss = { showClearDialog = false }

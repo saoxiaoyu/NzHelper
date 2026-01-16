@@ -66,30 +66,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import com.google.gson.JsonParser.parseString
-import com.google.gson.reflect.TypeToken
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import me.neko.nzhelper.NzApplication
+import me.neko.nzhelper.data.ImportResult
 import me.neko.nzhelper.data.Session
 import me.neko.nzhelper.data.SessionRepository
 import me.neko.nzhelper.ui.dialog.CustomAppAlertDialog
 import me.neko.nzhelper.ui.dialog.DetailsDialog
-import java.io.OutputStreamWriter
-import java.time.LocalDateTime
+import me.neko.nzhelper.util.TimeUtils
 import java.time.format.DateTimeFormatter
-
-@SuppressLint("DefaultLocale")
-private fun formatTime(totalSeconds: Int): String {
-    val hours = totalSeconds / 3600
-    val minutes = (totalSeconds % 3600) / 60
-    val seconds = totalSeconds % 60
-    return buildString {
-        if (hours > 0) append(String.format("%02d:", hours))
-        append(String.format("%02d:%02d", minutes, seconds))
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -98,7 +82,6 @@ fun HistoryScreen() {
     val scope = rememberCoroutineScope()
 
     val sessions = remember { mutableStateListOf<Session>() }
-    val sessionsTypeToken = object : TypeToken<List<Session>>() {}.type
 
     var editSession by remember { mutableStateOf<Session?>(null) }
     var showDetailsDialog by remember { mutableStateOf(false) }
@@ -125,89 +108,19 @@ fun HistoryScreen() {
     ) { uri: Uri? ->
         uri?.let { importUri ->
             scope.launch {
-                try {
-                    context.contentResolver.openInputStream(importUri)?.use { inputStream ->
-                        val jsonStr = inputStream.bufferedReader().readText()
-                        val importedSessions = mutableListOf<Session>()
-
-                        var success = false
-                        try {
-                            val newList: List<Session> =
-                                NzApplication.gson.fromJson(jsonStr, sessionsTypeToken)
-                            importedSessions.addAll(newList)
-                            success = true
-                        } catch (_: Exception) {
-                            // 新格式失败，继续尝试旧格式
-                        }
-
-                        // 如果新格式失败，尝试旧数组格式
-                        if (!success) {
-                            try {
-                                val root = parseString(jsonStr).asJsonArray
-                                for (elem in root) {
-                                    if (elem.isJsonArray) {
-                                        val arr = elem.asJsonArray
-                                        val timeStr = arr[0].asString
-                                        val timestamp = LocalDateTime.parse(
-                                            timeStr,
-                                            DateTimeFormatter.ISO_LOCAL_DATE_TIME
-                                        )
-
-                                        val duration = if (arr.size() > 1) arr[1].asInt else 0
-                                        val remark =
-                                            if (arr.size() > 2 && !arr[2].isJsonNull) arr[2].asString else ""
-                                        val location =
-                                            if (arr.size() > 3 && !arr[3].isJsonNull) arr[3].asString else ""
-                                        val watchedMovie =
-                                            if (arr.size() > 4) arr[4].asBoolean else false
-                                        val climax = if (arr.size() > 5) arr[5].asBoolean else false
-                                        val rating = if (arr.size() > 6 && !arr[6].isJsonNull)
-                                            arr[6].asFloat.coerceIn(0f, 5f) else 3f
-                                        val mood =
-                                            if (arr.size() > 7 && !arr[7].isJsonNull) arr[7].asString else "平静"
-                                        val props =
-                                            if (arr.size() > 8 && !arr[8].isJsonNull) arr[8].asString else "手"
-
-                                        importedSessions.add(
-                                            Session(
-                                                timestamp = timestamp,
-                                                duration = duration,
-                                                remark = remark,
-                                                location = location,
-                                                watchedMovie = watchedMovie,
-                                                climax = climax,
-                                                rating = rating,
-                                                mood = mood,
-                                                props = props
-                                            )
-                                        )
-                                    }
-                                }
-                            } catch (parseException: Exception) {
-                                parseException.printStackTrace()
-                            }
-                        }
-
-                        // 统一处理导入结果
-                        if (importedSessions.isNotEmpty()) {
-                            sessions.clear()
-                            sessions.addAll(importedSessions)
-                            SessionRepository.saveSessions(context, sessions)
-
-                            withContext(Dispatchers.Main) {
-                                Toast.makeText(
-                                    context,
-                                    "成功导入 ${importedSessions.size} 条记录",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        } else {
-                            Toast.makeText(context, "导入失败：文件格式不正确", Toast.LENGTH_SHORT)
-                                .show()
-                        }
+                when (val result = SessionRepository.importFromUri(context, importUri)) {
+                    is ImportResult.Success -> {
+                        sessions.clear()
+                        sessions.addAll(result.sessions)
+                        Toast.makeText(
+                            context,
+                            "成功导入 ${result.count} 条记录",
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
-                } catch (e: Exception) {
-                    e.printStackTrace()
+                    is ImportResult.Error -> {
+                        Toast.makeText(context, "导入失败：${result.message}", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         }
@@ -218,14 +131,11 @@ fun HistoryScreen() {
     ) { uri: Uri? ->
         uri?.let { exportUri ->
             scope.launch {
-                try {
-                    context.contentResolver.openOutputStream(exportUri)?.use { os ->
-                        OutputStreamWriter(os).use { writer ->
-                            writer.write(NzApplication.gson.toJson(sessions))
-                        }
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
+                val success = SessionRepository.exportToUri(context, exportUri)
+                if (success) {
+                    Toast.makeText(context, "导出成功", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "导出失败", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -320,7 +230,7 @@ fun HistoryScreen() {
                                                 DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
                                             )
                                         )
-                                        Text("持续: ${formatTime(session.duration)}")
+                                        Text("持续: ${TimeUtils.formatTime(session.duration)}")
                                         if (session.remark.isNotBlank()) {
                                             Text(
                                                 "备注: ${session.remark}",
@@ -416,7 +326,7 @@ fun HistoryScreen() {
                                 "开始时间",
                                 session.timestamp.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
                             )
-                            DetailRow("持续时长", formatTime(session.duration))
+                            DetailRow("持续时长", TimeUtils.formatTime(session.duration))
                             DetailRow("地点", session.location.ifEmpty { "无" })
                             DetailRow("备注", session.remark.ifEmpty { "无" })
                             DetailRow("观看小电影", if (session.watchedMovie) "是" else "否")

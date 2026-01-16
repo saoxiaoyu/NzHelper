@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import me.neko.nzhelper.R
 import me.neko.nzhelper.ui.util.NotificationUtil
+import me.neko.nzhelper.util.TimeUtils
 
 /**
  * 前台计时服务
@@ -82,7 +83,6 @@ class TimerService : Service() {
     }
 
     /** 停止并重置计时 */
-    @Suppress("DEPRECATION")
     private fun stopTimer() {
         handler.removeCallbacks(tickRunnable)
         // 重置状态
@@ -90,13 +90,18 @@ class TimerService : Service() {
         startTimeMs = 0L
         _elapsedSec.value = 0
         // 取消前台状态并移除通知
-        stopForeground(true)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
         stopSelf()
     }
 
     /** 构建通知 */
     private fun buildNotification(elapsed: Int): Notification {
-        val contentText = formatTime(elapsed)
+        val contentText = TimeUtils.formatTime(elapsed)
         return NotificationCompat.Builder(this, NotificationUtil.CHANNEL_ID)
             .setContentTitle("计时进行中")
             .setContentText(contentText)
@@ -121,16 +126,5 @@ class TimerService : Service() {
         const val ACTION_PAUSE = "me.neko.nzhelper.ACTION_PAUSE"
         const val ACTION_STOP  = "me.neko.nzhelper.ACTION_STOP"
         const val NOTIF_ID = 1001
-    }
-
-    @SuppressLint("DefaultLocale")
-    private fun formatTime(totalSeconds: Int): String {
-        val h = totalSeconds / 3600
-        val m = (totalSeconds % 3600) / 60
-        val s = totalSeconds % 60
-        return buildString {
-            if (h > 0) append(String.format("%02d:", h))
-            append(String.format("%02d:%02d", m, s))
-        }
     }
 }
